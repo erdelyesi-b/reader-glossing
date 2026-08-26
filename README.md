@@ -3,7 +3,7 @@
 Turns a German epub into the glossed chapter JSON that a reading app serves, and
 re-uses every word ever defined so a new book only costs tokens for what's
 actually new. Built to read German novels with vocabulary help on a self-hosted
-e-reader; 208 chapters and ~29,600 lemmas through it so far.
+e-reader; 217 chapters and ~29,900 lemmas through it so far.
 
 > **What this document is.** The operating manual for the pipeline, addressed to
 > the LLM that runs it. The toolchain is deliberately split so that the
@@ -58,7 +58,8 @@ scp "results/<Book>/chNN_glossed.json" <server>:"$READER_LIVE/<Book>/"
 After shipping a chapter, drop a copy into `live/` too, so the local mirror keeps
 matching the server.
 
-Current book: `E.T.A. Hoffmann - Der goldene Topf`, 12 chapters (Vigilien) — finished.
+Current books: `E.T.A. Hoffmann - Der goldene Topf` (12 Vigilien) and
+`E.T.A. Hoffmann - Der Sandmann` (9 chapters) — both finished.
 
 ## 2. The loop, per chapter
 
@@ -326,6 +327,28 @@ heading is dropped — which is what removes PG's boilerplate header. Match the
 headings precisely: keying on `<h2` alone would also have caught PG's own
 "The Project Gutenberg eBook of…" heading and made it ch01.
 
+### When the epub has no headings at all
+
+Gutenberg's plain-text conversions (`NNNN-8.txt` rendered to xhtml) carry no
+`<h1>`–`<h6>` anywhere: every line, story titles included, is a bare `<p>`, and
+the whole book sits in three or four byte-sized spine documents. `--split-tag p`
+makes `--split-heading` cut on paragraphs instead, and `--stop-heading` drops the
+matched section and everything after it — the licence, or the next story in an
+anthology:
+
+```bash
+python3 scripts/extract_epub.py --epub "source/Nachtstuecke.epub" \
+  --book "E.T.A. Hoffmann - Der Sandmann" \
+  --chapter-pattern "6341-8-0\.txt\.xhtml" --split-tag p \
+  --split-heading 'id="id000(08|24|31|34|38|40|44|45|47|52)"' \
+  --stop-heading 'id="id00052"'
+```
+
+With `--split-tag p` a matched paragraph becomes the chapter title only if it is
+at most 80 characters — otherwise it is the chapter's first paragraph and stays
+in the body. Splitting on paragraph ids means the split points are positions in
+one particular file, so re-run the dry run after any re-download.
+
 Low paragraph counts are not necessarily a bug. This book extracts to 2–7
 paragraphs per chapter because the source really does wrap thousands of characters
 in a single `<p>` — 1814 prose keeps dialogue inline instead of breaking per
@@ -379,8 +402,60 @@ them: 39% of verb entries carry the auxiliary, 66% of nouns carry a plural, and
 
 ## 10. Status
 
-208 chapters glossed, all finished; nothing outstanding. Glossary: 29,643 lemmas,
-152,509 occurrences.
+217 chapters glossed, all finished; nothing outstanding. Glossary: 29,881 lemmas,
+154,237 occurrences.
+
+### Der Sandmann — 9 chapters, 555 sentences, 1,728 entries
+
+The second Hoffmann, and the first book glossed against a glossary that already
+held the author. Overall **3.11 per sentence / 2.20 per 100 chars** — the
+per-character figure lands on *Der goldene Topf*'s 2.19 and the corpus's 2.17,
+while the per-sentence figure differs by a quarter, which is the §5 point stated
+as a measurement rather than an argument.
+
+|  | Title | Sentences | Vocab | Per sentence | Band | Per 100 chars | cap |
+|---|---|---:|---:|---:|---:|---:|---:|
+| ch01 | Nathanael an Lothar | 159 | 443 | 2.79 | 2.25–3.05 | 2.38 | 3 |
+| ch02 | Clara an Nathanael | 38 | 151 | 3.97 | 3.49–4.72 | 2.19 | 4 |
+| ch03 | Nathanael an Lothar | 33 | 68 | 2.06 | 1.94–2.63 | 2.04 | 2 |
+| ch04 | | 44 | 184 | 4.18 | 3.55–4.80 | 2.27 | 4 |
+| ch05 | | 53 | 204 | 3.85 | 3.10–4.19 | 2.39 | 4 |
+| ch06 | | 55 | 185 | 3.36 | 3.16–4.27 | 2.05 | 4 |
+| ch07 | | 69 | 200 | 2.90 | 2.58–3.49 | 2.16 | 3 |
+| ch08 | | 62 | 184 | 2.97 | 2.88–3.90 | 1.98 | 3 |
+| ch09 | | 42 | 109 | 2.60 | 2.51–3.40 | 1.99 | 3 |
+
+**The chapters are cuts, not the author's.** The novella has no chapter
+divisions. ch01–ch03 are the three letters and carry their own headings; ch04–ch09
+are splits made at paragraph breaks to keep chapters between 5.5k and 9.4k
+characters, and they have no titles because inventing one would be worse than
+leaving it empty.
+
+**Sentence length swings even harder than in the first book** — 100.9 chars in
+ch03 against 184.4 in ch04, a factor of 1.83 inside one novella — so the band was
+computed per chapter throughout. The caps that followed ran 2–4, lower than *Der
+goldene Topf*'s 3–5, because more of the text now resolves from the glossary.
+
+**Same-author re-use is real but smaller than it looks.** Stoplist absorption
+(54.9–61.9%) and candidate rates (8.6–12.5%) stayed in the range the first
+Hoffmann set, against the modern corpus's 73–77% and 3–6%. What did change is the
+DB's *usefulness* per hit: ch01 merged at 2.79 with a cap of 3 where *Der goldene
+Topf* ch01 needed the same cap to reach 4.15 on much longer sentences.
+
+**Coppola's accent is dead weight, as §5 predicts.** The Italian optician speaks
+phonetically transcribed German — `sköne Oke`, `nix`, `Brill`, `Nas`, `su`,
+`Peipendreher` — and every one of those surfaces as a candidate that cannot be
+glossed. ch06 and ch09 carry most of them. Old orthography behaves as in the
+first book: `daß`, `muß`, `häßlich`, `Hülfe` miss both stoplist and glossary and
+are skipped as spelling variants.
+
+**What this book needs glossed** is the optical and mechanical vocabulary the
+plot turns on (`das Perspektiv`, `der Optikus`, `das Räderwerk`, `das Triebwerk`,
+`der Automat`, `aufziehen`), Biedermeier dress and household (`das Beinkleid`,
+`der Haarbeutel`, `die Lorgnette`, `die Magd`), and the musical terms of the ball
+scene (`die Roulade`, `die Kadenz`, `der Triller`, `die Bravour`).
+
+No chapter fired the duplicate-term or charset guard.
 
 ### Der goldene Topf — 12 Vigilien, 1,000 sentences, 3,996 entries
 

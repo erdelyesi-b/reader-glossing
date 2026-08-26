@@ -34,6 +34,11 @@ from sentences import split_sentences  # noqa: E402
 OPF_NS = {"o": "http://www.idpf.org/2007/opf"}
 CONTAINER = "META-INF/container.xml"
 
+# Which element starts a section, and how long a <p> may be before it is prose
+# rather than a chapter title.
+DEFAULT_SPLIT_TAG = "h[1-6]"
+TITLE_MAX = 80
+
 # <p> classes that carry layout, not prose.
 SKIP_CLASSES = {"pagebreak", "break"}
 
@@ -62,17 +67,20 @@ def clean(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def split_sections(source, pat):
-    """Cut one spine document into sections at headings matching pat.
+def split_sections(source, pat, tag=DEFAULT_SPLIT_TAG):
+    """Cut one spine document into sections at elements matching pat.
 
     Some epubs — Project Gutenberg's especially — put many chapters in one
     document and mark each with a heading rather than giving it its own spine
     entry. A section runs from its heading to the next one; anything before the
     first heading is front matter (PG's boilerplate header) and is dropped.
+
+    PG's plain-text conversions have no headings at all: every line, titles
+    included, is a bare <p>. Pass tag="p" to cut on those instead.
     """
     starts = [
         m.start()
-        for m in re.finditer(r"(?s)<h[1-6][^>]*>.*?</h[1-6]>", source)
+        for m in re.finditer(r"(?s)<(%s)[^>]*>.*?</\1>" % tag, source)
         if pat.search(m.group(0))
     ]
     return [
@@ -81,13 +89,19 @@ def split_sections(source, pat):
     ]
 
 
-def parse_chapter(source):
+def parse_chapter(source, tag=DEFAULT_SPLIT_TAG):
     source = re.sub(r"(?s)<(script|style).*?</\1>", " ", source)
 
     title = ""
-    m = re.search(r"(?s)<h[1-6][^>]*>(.*?)</h[1-6]>", source)
+    m = re.search(r"(?s)<(%s)[^>]*>(.*?)</\1>" % tag, source)
     if m:
-        title = clean(m.group(1))
+        text = clean(m.group(2))
+        # A heading is a title whatever it says. A <p> only counts as one if it
+        # is short enough to be a title rather than the chapter's first
+        # paragraph — and then it must not also be read back in as prose.
+        if tag == DEFAULT_SPLIT_TAG or len(text) <= TITLE_MAX:
+            title = text
+            source = source[:m.start()] + source[m.end():]
 
     paragraphs = []
     for pm in re.finditer(r"(?s)<p([^>]*)>(.*?)</p>", source):
@@ -122,6 +136,18 @@ def main():
         help="regex on a heading tag; splits each matched spine document into "
              "one chapter per heading, dropping whatever precedes the first",
     )
+    ap.add_argument(
+        "--split-tag",
+        default=DEFAULT_SPLIT_TAG,
+        help="element --split-heading matches against (default %(default)s); "
+             "use 'p' for PG's plain-text conversions, which have no headings",
+    )
+    ap.add_argument(
+        "--stop-heading",
+        default=None,
+        help="regex on the same element; drops that section and everything "
+             "after it — the licence, or the next story in an anthology",
+    )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -134,9 +160,16 @@ def main():
     docs = [z.read(h).decode("utf-8", "replace") for h in hrefs]
     if args.split_heading:
         spat = re.compile(args.split_heading)
-        docs = [s for d in docs for s in split_sections(d, spat)]
+        docs = [s for d in docs
+                for s in split_sections(d, spat, args.split_tag)]
         if not docs:
             raise SystemExit("no headings match %r" % args.split_heading)
+    if args.stop_heading:
+        epat = re.compile(args.stop_heading)
+        keep = [i for i, d in enumerate(docs) if epat.search(d[:400])]
+        if not keep:
+            raise SystemExit("no section matches %r" % args.stop_heading)
+        docs = docs[:keep[0]]
 
     out = args.out or os.path.join(paths.CHAPTERS, args.book or "Untitled")
     if not args.dry_run:
@@ -144,7 +177,7 @@ def main():
 
     total_s = total_c = 0
     for i, source in enumerate(docs, 1):
-        title, paragraphs = parse_chapter(source)
+        title, paragraphs = parse_chapter(source, args.split_tag)
         n_s = sum(len(p) for p in paragraphs)
         n_c = sum(len(s) for p in paragraphs for s in p)
         total_s += n_s
