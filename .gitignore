@@ -1,0 +1,27 @@
+# Derived — rebuild with scripts/build_reader_glossary.py
+*.db
+*.db-wal
+*.db-shm
+
+# Book text stays out of git — source epubs, everything derived from them, and
+# the local mirror of the finished books the glossary is built from. The only
+# exception is samples/, a handful of sentences kept as the format contract.
+*.epub
+source/
+chapters/
+work/
+results/
+live/
+
+# Local-model bench: harness code is tracked, everything it derives is not
+# (goldset and runs contain book text; models are multi-GB downloads).
+local-eval/goldset/
+local-eval/runs/
+local-eval/results/
+local-eval/models/
+
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+._*

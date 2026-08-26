@@ -1,0 +1,34 @@
+{
+  "chapter": "ch02",
+  "batch": 1,
+  "sentences": [
+    {
+      "i": 24,
+      "text": "Schon wollte er in die Pappelallee bei dem Koselschen Garten einbiegen, als eine Stimme hinter ihm her rief: Herr Anselmus!",
+      "new": [
+        "Pappelallee",
+        "Koselschen"
+      ]
+    },
+    {
+      "i": 25,
+      "text": "Herr Anselmus! wo rennen Sie denn um tausend Himmelswillen hin in solcher Hast?",
+      "new": [
+        "Himmelswillen",
+        "solcher"
+      ]
+    },
+    {
+      "i": 26,
+      "text": "Der Student blieb wie in den Boden gewurzelt stehen, denn er war überzeugt, daß nun gleich ein neues Unglück auf ihn einbrechen werde.",
+      "new": [
+        "gewurzelt"
+      ]
+    },
+    {
+      "i": 27,
+      "text": "Die Stimme ließ sich wieder hören: Herr Anselmus, so kommen Sie doch zurück, wir warten hier am Wasser!",
+      "new": []
+    }
+  ]
+}
